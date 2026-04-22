@@ -1,171 +1,336 @@
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StreamTokenizer;
-import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Vector;
-
 import java.util.Comparator;
 
-// clase avion para guardar datos
-class Avion {
-	int Ei, Pi, Li, dom, i;
-	double Ci, Ck;
-	int[] tau;
+class Aircraft {
+    int originalIndex;
+    int earliestTime;
+    int preferredTime;
+    int latestTime;
 
-	Avion(int n) {
-		tau = new int[n];
-	}
+    int domainSize;
 
-	public int getDom(){
-		return dom;
-	}
-	public void setDom(){
-		dom = Li - Ei;
-	} 
-}
-public class BT {
-	static double mejorCosto = Double.MAX_VALUE;
+    double earlyPenalty;
+    double latePenalty;
 
-	static long tiempoDeSolucionEncontrada;
-	static int solucionesEncontradas = 0;
-	static int nodos = 0;
-	static int n;
-	static Avion[] aviones;
-	static long inicio;
-    public static void main(String[] args) throws IOException {
-		
-		// lectura de standar input
-        try (BufferedReader br = Files.newBufferedReader(Path.of("case1.txt"))) {
-			
-			StreamTokenizer st = new StreamTokenizer(br);
-            st.nextToken();
-			// D aviones
-			n = (int) st.nval;
-			// arreglo de aviones
-			aviones = new Avion[n];
-			
-			for (int i = 0; i < n; i++) {
-				aviones[i] = new Avion(n);
-				aviones[i].i = i;
-				st.nextToken(); aviones[i].Ei  = (int) st.nval;
-				st.nextToken(); aviones[i].Pi  = (int) st.nval;
-				st.nextToken(); aviones[i].Li  = (int) st.nval;
-				aviones[i].setDom();
-				st.nextToken(); aviones[i].Ci  = st.nval;
-				st.nextToken(); aviones[i].Ck  = st.nval;
-				
-				// Tiempos de separación con cada avión j
-				for (int j = 0; j < n; j++) {
-					st.nextToken();
-					aviones[i].tau[j] = (int) st.nval;
-				}
-			}
-        }
-		// fin lectura standar input
-		
-		
-		// heuristica de seleccion de variable 
-		// se usa Dom -> la que tiene el dominio menor, es decir, Li - Ei < a las demas
-		
-		Arrays.sort(aviones, Comparator.comparingInt(Avion::getDom));
-		
-		// fin heuristica, aviones ordenados
+    int[] separationTimes;
+    int[] orderedLandingTimes;
 
-		//System.out.println(aviones[0].i);
-		ArrayList<ArrayList<Integer>> Soluciones = new ArrayList<>();
-		ArrayList<Integer> solparcial= new ArrayList<>();
-
-		
-		
-		//tiempo inicio
-		inicio = System.nanoTime();
-		long inicioEjecucion = System.nanoTime();
-
-		// ------------------------------------------- hasta acamisma implementacion para FC pero cambiar las funciones ---------------------------------
-		
-		// algoritmo principal
-		asignarTiempoAterrizaje(0,Soluciones, solparcial, aviones);
-
-		// tiempo fin
-		long fin = System.nanoTime();
-		long tiempo = fin - inicioEjecucion;
-
-		System.out.println("cantidad de nodos creados:");
-		System.out.println(nodos);
-		System.out.println("Tiempo de Ejecucion:");
-		System.out.println(tiempo);
-		
-
+    Aircraft(int totalAircraft) {
+        separationTimes = new int[totalAircraft];
     }
 
-	public static void asignarTiempoAterrizaje(int index, ArrayList<ArrayList<Integer>> Soluciones, ArrayList<Integer> actual, Avion[] listaAviones){
-		nodos = nodos + 1;
-		//System.out.println(nodos);
-		
-		// caso base
-		if(n == index){
-			
-			double costoDeLaSolucion = calcularCosto(actual);
-			// solo metemos la solucion si mejora el costo actual para no llenar el heap
-			if(costoDeLaSolucion < mejorCosto){
-				mejorCosto = costoDeLaSolucion;
-				
-				Soluciones.add(new ArrayList<>(actual));
-				double segundos = (System.nanoTime() - inicio) / 1_000_000.0;
-	
-				System.out.printf("Solución encontrada en %.4f milisegundos%n", segundos);
-				return;
-			}
-			return;
-		}
-		
-		Avion curr = listaAviones[index]; 
-		
-		// debug
-		//System.out.println("entre a asignarTiempoAterrizaje");
-		//isValid(index, 2, listaAviones);
-		
-		for (int t = curr.Ei; t <= curr.Li; t++) {
-			if (isValid(index, actual, t ,listaAviones)) {
-				actual.add(t); // elegir
-            	asignarTiempoAterrizaje(index + 1, Soluciones, actual, listaAviones); 
-				actual.remove(actual.size() - 1);
+    void computeDomainSize() {
+        domainSize = latestTime - earliestTime + 1;
+    }
+
+    void buildOrderedLandingTimes() {
+        orderedLandingTimes = new int[domainSize];
+        int position = 0;
+
+        if (preferredTime >= earliestTime && preferredTime <= latestTime) {
+            orderedLandingTimes[position++] = preferredTime;
+        }
+
+        int left = preferredTime - 1;
+        int right = preferredTime + 1;
+
+        while (left >= earliestTime || right <= latestTime) {
+            if (left >= earliestTime) {
+                orderedLandingTimes[position++] = left--;
             }
-		}
-	}
 
-	static boolean isValid(int idx, ArrayList<Integer> actual, int tiempoAterrizaje, Avion[] listaAviones) {
-		//System.out.println("entre a isValid y mi idx es:");
-		//System.out.println(idx);
+            if (right <= latestTime) {
+                orderedLandingTimes[position++] = right++;
+            }
+        }
+    }
+}
 
-        for (int j = 0; j < idx; j++) {
-			int tj = actual.get(j);
-			Avion prev = listaAviones[j];   
-			Avion curr = listaAviones[idx]; 
+public class BT {
+    static int totalAircraft;
+    static Aircraft[] aircraftList;
 
-			if (tiempoAterrizaje >= tj) {
-				
-				if (tiempoAterrizaje - tj < prev.tau[curr.i]) return false; 
-			} else {
-				
-				if (tj - tiempoAterrizaje < curr.tau[prev.i]) return false;
-			}
-		}
-    	return true;
-	}
+    static int[] landingSchedule;
+    static int[] bestSchedule;
+    static double[] suffixMinPenaltyDP;
 
-	static double calcularCosto(ArrayList<Integer> solAEvaluar){
-		double costo = 0;
-		for (int k = 0; k < n; k++) {
-			int t = solAEvaluar.get(k);   // tiempo asignado al avión k
-			Avion a = aviones[k];
+    static double bestCost = Double.MAX_VALUE;
 
-			costo = Math.max(a.Ci * (a.Pi - t), 0) + Math.max(a.Ck * (t - a.Pi), 0);
-		}
-		return costo;
-	}
+    static long exploredNodes = 0;
+    static long prunedNodes = 0;
+    static long solutionsFound = 0;
+    static long nodesAtLastSolution = 0;
+
+    static long startTime;
+
+    public static void main(String[] args) throws IOException {
+
+        String fileName = args.length > 0 ? args[0] : "case1.txt";
+
+        loadInstance(fileName);
+
+        Arrays.sort(
+                aircraftList,
+                Comparator
+                        .comparingInt((Aircraft a) -> a.domainSize)
+                        .thenComparingInt(a -> -sumSeparations(a))
+        );
+
+        for (Aircraft aircraft : aircraftList) {
+            aircraft.buildOrderedLandingTimes();
+        }
+
+        landingSchedule = new int[totalAircraft];
+        bestSchedule = new int[totalAircraft];
+        suffixMinPenaltyDP = new double[totalAircraft + 1];
+
+        buildSuffixMinPenaltyDP();
+
+        startTime = System.nanoTime();
+
+        search(0, 0.0);
+
+        long elapsedMs = (System.nanoTime() - startTime) / 1_000_000;
+
+        printResults(fileName, elapsedMs);
+    }
+
+    static void loadInstance(String fileName) throws IOException {
+        try (BufferedReader reader = Files.newBufferedReader(Path.of(fileName))) {
+            StreamTokenizer tokenizer = new StreamTokenizer(reader);
+
+            tokenizer.nextToken();
+            totalAircraft = (int) tokenizer.nval;
+
+            aircraftList = new Aircraft[totalAircraft];
+
+            for (int i = 0; i < totalAircraft; i++) {
+
+                Aircraft aircraft = new Aircraft(totalAircraft);
+
+                aircraft.originalIndex = i;
+
+                tokenizer.nextToken();
+                aircraft.earliestTime = (int) tokenizer.nval;
+
+                tokenizer.nextToken();
+                aircraft.preferredTime = (int) tokenizer.nval;
+
+                tokenizer.nextToken();
+                aircraft.latestTime = (int) tokenizer.nval;
+
+                tokenizer.nextToken();
+                aircraft.earlyPenalty = tokenizer.nval;
+
+                tokenizer.nextToken();
+                aircraft.latePenalty = tokenizer.nval;
+
+                for (int j = 0; j < totalAircraft; j++) {
+                    tokenizer.nextToken();
+                    aircraft.separationTimes[j] = (int) tokenizer.nval;
+                }
+
+                aircraft.computeDomainSize();
+
+                aircraftList[i] = aircraft;
+            }
+        }
+    }
+
+    static void search(int depth, double currentCost) {
+        exploredNodes++;
+
+        if (currentCost >= bestCost) {
+            prunedNodes++;
+            return;
+        }
+
+        if (depth == totalAircraft) {
+            bestCost = currentCost;
+            System.arraycopy(landingSchedule, 0, bestSchedule, 0, totalAircraft);
+            solutionsFound++;
+
+            nodesAtLastSolution = exploredNodes;
+
+            System.out.printf(
+                    "Solution #%d found -> explored nodes: %d, cost: %.2f%n",
+                    solutionsFound,
+                    exploredNodes,
+                    currentCost
+            );
+            return;
+        }
+
+        if (currentCost + optimisticBound(depth) >= bestCost) {
+            prunedNodes++;
+            return;
+        }
+
+        Aircraft currentAircraft = aircraftList[depth];
+
+        for (int landingTime : currentAircraft.orderedLandingTimes) {
+
+            if (!isFeasible(depth, landingTime)) {
+                continue;
+            }
+
+            landingSchedule[depth] = landingTime;
+
+            double newCost =
+                    currentCost + calculatePenalty(currentAircraft, landingTime);
+
+            search(depth + 1, newCost);
+        }
+    }
+
+    static boolean isFeasible(int depth, int landingTime) {
+
+        Aircraft currentAircraft = aircraftList[depth];
+
+        for (int i = 0; i < depth; i++) {
+
+            Aircraft previousAircraft = aircraftList[i];
+            int previousTime = landingSchedule[i];
+
+            if (landingTime >= previousTime) {
+                if (landingTime - previousTime <
+                        previousAircraft.separationTimes[currentAircraft.originalIndex]) {
+                    return false;
+                }
+            } else {
+                if (previousTime - landingTime <
+                        currentAircraft.separationTimes[previousAircraft.originalIndex]) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    static boolean isFeasibleWithAssignedPrefix(int aircraftIndex, int landingTime, int depthLimit) {
+
+        Aircraft currentAircraft = aircraftList[aircraftIndex];
+
+        for (int i = 0; i < depthLimit; i++) {
+
+            Aircraft previousAircraft = aircraftList[i];
+            int previousTime = landingSchedule[i];
+
+            if (landingTime >= previousTime) {
+                if (landingTime - previousTime <
+                        previousAircraft.separationTimes[currentAircraft.originalIndex]) {
+                    return false;
+                }
+            } else {
+                if (previousTime - landingTime <
+                        currentAircraft.separationTimes[previousAircraft.originalIndex]) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    static void buildSuffixMinPenaltyDP() {
+        suffixMinPenaltyDP[totalAircraft] = 0.0;
+
+        for (int i = totalAircraft - 1; i >= 0; i--) {
+            suffixMinPenaltyDP[i] = suffixMinPenaltyDP[i + 1] + minimumPenalty(aircraftList[i]);
+        }
+    }
+
+    static double optimisticBound(int depth) {
+
+        if (depth == 0) {
+            return suffixMinPenaltyDP[0];
+        }
+
+        double bound = 0.0;
+
+        for (int i = depth; i < totalAircraft; i++) {
+            Aircraft aircraft = aircraftList[i];
+            double bestPenaltyForAircraft = Double.MAX_VALUE;
+
+            for (int landingTime : aircraft.orderedLandingTimes) {
+
+                if (isFeasibleWithAssignedPrefix(i, landingTime, depth)) {
+                    bestPenaltyForAircraft = calculatePenalty(aircraft, landingTime);
+                    break;
+                }
+            }
+
+            if (bestPenaltyForAircraft == Double.MAX_VALUE) {
+                return Double.MAX_VALUE;
+            }
+
+            bound += bestPenaltyForAircraft;
+        }
+
+        return Math.max(bound, suffixMinPenaltyDP[depth]);
+    }
+
+    static double minimumPenalty(Aircraft aircraft) {
+
+        if (aircraft.preferredTime >= aircraft.earliestTime &&
+                aircraft.preferredTime <= aircraft.latestTime) {
+            return 0.0;
+        }
+
+        if (aircraft.preferredTime < aircraft.earliestTime) {
+            return (aircraft.earliestTime - aircraft.preferredTime)
+                    * aircraft.latePenalty;
+        }
+
+        return (aircraft.preferredTime - aircraft.latestTime)
+                * aircraft.earlyPenalty;
+    }
+
+    static double calculatePenalty(Aircraft aircraft, int landingTime) {
+        if (landingTime < aircraft.preferredTime) {
+            return (aircraft.preferredTime - landingTime)
+                    * aircraft.earlyPenalty;
+        }
+
+        return (landingTime - aircraft.preferredTime)
+                * aircraft.latePenalty;
+    }
+
+    static int sumSeparations(Aircraft aircraft) {
+        int total = 0;
+
+        for (int value : aircraft.separationTimes) {
+            total += value;
+        }
+
+        return total;
+    }
+
+    static void printResults(String fileName, long elapsedMs) {
+
+        System.out.println("=== BACKTRACKING ===");
+        System.out.println("File: " + fileName);
+        System.out.println("Explored nodes: " + exploredNodes);
+        System.out.println("Pruned nodes: " + prunedNodes);
+        System.out.println("Solutions found: " + solutionsFound);
+        System.out.printf("Best cost: %.2f%n", bestCost);
+        System.out.println("Execution time: " + elapsedMs + " ms");
+
+        int[] orderedOutput = new int[totalAircraft];
+
+        for (int i = 0; i < totalAircraft; i++) {
+            orderedOutput[aircraftList[i].originalIndex] = bestSchedule[i];
+        }
+
+        System.out.println("Best schedule:");
+
+        for (int i = 0; i < totalAircraft; i++) {
+            System.out.println("Aircraft " + i + " -> " + orderedOutput[i]);
+        }
+    }
 }
