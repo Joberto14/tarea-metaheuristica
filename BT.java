@@ -144,11 +144,11 @@ public class BT {
 
     static void search(int depth, double currentCost) {
         exploredNodes++;
-
-        if (currentCost >= bestCost) {
-            prunedNodes++;
-            return;
-        }
+		// eliminar este prueno ya que no corresponde a una porpuesta de backtrack??
+        // if (currentCost >= bestCost) {
+        //     prunedNodes++;
+        //     return;
+        // }
 
         if (depth == totalAircraft) {
             bestCost = currentCost;
@@ -165,11 +165,12 @@ public class BT {
             );
             return;
         }
-
-        if (currentCost + optimisticBound(depth) >= bestCost) {
-            prunedNodes++;
-            return;
-        }
+		
+		// tampoco corresponde
+        // if (currentCost + optimisticBound(depth) >= bestCost) {
+        //     prunedNodes++;
+        //     return;
+        // }
 
         Aircraft currentAircraft = aircraftList[depth];
 
@@ -316,7 +317,8 @@ public class BT {
         System.out.println("=== BACKTRACKING ===");
         System.out.println("File: " + fileName);
         System.out.println("Explored nodes: " + exploredNodes);
-        System.out.println("Pruned nodes: " + prunedNodes);
+		// esto tmb eliminao
+        // System.out.println("Pruned nodes: " + prunedNodes);
         System.out.println("Solutions found: " + solutionsFound);
         System.out.printf("Best cost: %.2f%n", bestCost);
         System.out.println("Execution time: " + elapsedMs + " ms");
