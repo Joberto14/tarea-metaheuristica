@@ -157,12 +157,12 @@ public class BT {
 
             nodesAtLastSolution = exploredNodes;
 
-            System.out.printf(
-                    "Solution #%d found -> explored nodes: %d, cost: %.2f%n",
-                    solutionsFound,
-                    exploredNodes,
-                    currentCost
-            );
+            // System.out.printf(
+            //         "Solution #%d found -> explored nodes: %d, cost: %.2f%n",
+            //         solutionsFound,
+            //         exploredNodes,
+            //         currentCost
+            // );
             return;
         }
 		
